@@ -1,19 +1,21 @@
-// PocketSense AI - Advanced Core Logic
+// PocketSense AI - Optimized Core Application Logic
 const API_BASE_URL = 'http://localhost:8080/api';
 let supabaseClient = null;
 
-// Lifecycle Management
+const MOCK_USER_ID = '123e4567-e89b-12d3-a456-426614174000';
+
+/**
+ * 🚀 APPLICATION LIFECYCLE
+ */
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("PocketSense AI: Initializing advanced systems...");
     try {
         await initSupabase();
         setupGlobalNavigation();
         
         const path = window.location.pathname;
         if (path.includes('dashboard.html')) {
-            setupDashboard();
+            await refreshAllMetrics(); 
             setupBillScan();
-            triggerAlertToasts();
         } else if (path.includes('savings.html')) {
             setupSavings();
         } else if (path.includes('insights.html')) {
@@ -30,98 +32,206 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// 🔐 Authentication & Session
+/**
+ * 🔐 AUTHENTICATION & SESSION MANAGEMENT
+ */
 async function initSupabase() {
     try {
-        const res = await fetch('/auth-config');
+        // Absolute URL to ensure file-system execution works
+        const res = await fetch('http://localhost:8080/auth-config');
+        if (!res.ok) throw new Error("Could not fetch auth config");
         const config = await res.json();
+        
         if (config.url && config.key && !config.key.includes("YOUR_SUPABASE")) {
             supabaseClient = supabase.createClient(config.url, config.key);
-            console.log("Supabase Client initialized successfully.");
         } else {
-            console.warn("Supabase configuration incomplete. Auth features will use mock tokens.");
+            console.warn("Using Mock Auth: Configuration incomplete.");
         }
-    } catch (e) { console.warn("Supabase auth backend unreachable, using mock."); }
+    } catch (e) { 
+        console.warn("Using Mock Auth: Backend unreachable."); 
+    }
 }
 
-async function setupLogin() {
-    const form = document.getElementById('loginForm');
-    if (!form) return;
-
-    form.onsubmit = async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('emailInput').value;
-        const password = document.getElementById('passwordInput').value;
-        const alertBox = document.getElementById('loginAlert');
-
+async function getAuthenticatedUser() {
+    if (supabaseClient) {
         try {
-            console.log("Attempting sign in...");
-            if (supabaseClient) {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-                if (error) throw error;
-                showToast("Welcome back! ✨", "success");
-            } else {
-                showToast("Mock Sign-In Successful (No Supabase Keys)", "info");
-            }
-            setTimeout(() => window.location.href = 'dashboard.html', 1000);
-        } catch (err) {
-            console.error("Login Error:", err.message);
-            if (alertBox) {
-                alertBox.innerText = err.message;
-                alertBox.style.display = 'block';
-            }
-            showToast("Login Failed", "danger");
+            const { data: { user }, error } = await supabaseClient.auth.getUser();
+            if (error) throw error;
+            return user;
+        } catch (e) {
+            return null;
         }
-    };
-}
-
-async function setupSignup() {
-    const form = document.getElementById('signupForm');
-    if (!form) return;
-
-    form.onsubmit = async (e) => {
-        e.preventDefault();
-        const name = document.getElementById('nameInput').value;
-        const email = document.getElementById('emailInput').value;
-        const password = document.getElementById('passwordInput').value;
-        const alertBox = document.getElementById('signupAlert');
-
-        try {
-            if (supabaseClient) {
-                const { data, error } = await supabaseClient.auth.signUp({ 
-                    email, 
-                    password,
-                    options: { data: { full_name: name } }
-                });
-                if (error) throw error;
-                showToast("Account created! Please check your email.", "success");
-            } else {
-                showToast("Mock Sign-Up Successful (No Supabase Keys)", "info");
-            }
-            setTimeout(() => window.location.href = 'login.html', 2000);
-        } catch (err) {
-            console.error("Signup Error:", err.message);
-            if (alertBox) {
-                alertBox.innerText = err.message;
-                alertBox.style.display = 'block';
-            }
-            showToast("Signup Failed", "danger");
-        }
-    };
+    }
+    return null;
 }
 
 async function getUserId() {
-    // Priority: Supabase Session -> Default Mock
-    if (supabaseClient) {
-        try {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (user) return user.id;
-        } catch (e) {}
+    const user = await getAuthenticatedUser();
+    console.log("User:", user);
+    if (!user) {
+        return MOCK_USER_ID;
     }
-    return '123e4567-e89b-12d3-a456-426614174000';
+    return user.id;
 }
 
-// 💰 FEATURE 1: IMPROVED SAVINGS SYSTEM
+/**
+ * 💉 API HELPER
+ */
+async function apiFetch(endpoint, options = {}) {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        }
+    });
+    
+    if (!response.ok) {
+        const errorMsg = await response.text();
+        throw new Error(errorMsg || `API Error: ${response.status}`);
+    }
+    
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+        const data = await response.json();
+        console.log("Response:", data);
+        return data;
+    }
+    return null;
+}
+
+/**
+ * 💡 AI INSIGHTS & ANALYTICS
+ */
+async function refreshAllMetrics() {
+    try {
+        await Promise.allSettled([
+            setupDashboard(),
+            triggerAlertToasts(),
+            window.location.pathname.includes('insights.html') ? setupInsights() : Promise.resolve(),
+            window.location.pathname.includes('profile.html') ? setupProfile() : Promise.resolve()
+        ]);
+    } catch (e) {
+        console.error("Metric refresh failed:", e);
+    }
+}
+
+/**
+ * 🚨 ALERT SYSTEM
+ */
+async function triggerAlertToasts() {
+    const userId = await getUserId();
+    const container = document.getElementById('dashAlertsContainer');
+    
+    try {
+        const alerts = await apiFetch(`/alerts/${userId}`);
+        if (container) {
+            container.innerHTML = alerts.length ? '' : '<p class="text-secondary text-sm">No recent alerts.</p>';
+            alerts.forEach((alert, i) => {
+                const div = document.createElement('div');
+                div.className = 'alert-item';
+                div.innerHTML = `
+                    <div class="alert-icon ${alert.type === 'danger' ? 'danger' : 'warning'}">
+                        <i class="ph ph-${alert.type === 'danger' ? 'warning-octagon' : 'warning'}"></i>
+                    </div>
+                    <div class="alert-content">
+                        <h4>${alert.type?.toUpperCase()}</h4>
+                        <p>${alert.message}</p>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+        if (alerts.length > 0 && (alerts[0].type === 'danger' || alerts[0].type === 'warning')) {
+            showToast(`⚠️ ${alerts[0].message}`, alerts[0].type);
+        }
+    } catch (e) { console.error("Alerts sync failed"); }
+}
+
+/**
+ * 📊 DASHBOARD ENGINE
+ */
+async function setupDashboard() {
+    const userId = await getUserId();
+    try {
+        const [bData, hData, gData, aData, pData, rData] = await Promise.all([
+            apiFetch(`/budget/${userId}`),
+            apiFetch(`/health/${userId}`),
+            apiFetch(`/goal/${userId}`),
+            apiFetch(`/analytics/${userId}`),
+            apiFetch(`/prediction/${userId}`),
+            apiFetch(`/regret/${userId}`)
+        ]);
+
+        const scoreEl = document.getElementById('dashHealthScore');
+        if (scoreEl) {
+            scoreEl.innerText = hData.score || 0;
+            scoreEl.style.color = hData.score >= 80 ? 'var(--accent-success)' : (hData.score >= 50 ? 'var(--accent-warning)' : 'var(--accent-danger)');
+        }
+
+        setText('dashHealthStatus', hData.status || 'N/A');
+        setText('dashHealthMessage', hData.message || '');
+        setText('dashTodaySpend', `₹${(bData.spent || 0).toLocaleString()}`);
+        setText('dashBudgetRemaining', `₹${(bData.remaining || 0).toLocaleString()}`);
+        setText('dashGoalSpend', `₹${(gData.totalSaved || 0).toLocaleString()} / ₹${(gData.targetAmount || 0).toLocaleString()}`);
+        setText('dashRegretPercent', `${rData.percentage || 0}%`);
+        setText('dashRegretMessage', rData.message || '');
+        setText('dashPredictionAmount', `₹${(pData.predictedTotal || 0).toLocaleString()}`);
+        setText('dashPredictionMessage', pData.message || '');
+
+        const analyticsWrap = document.getElementById('analyticsGroup');
+        if (analyticsWrap) {
+            analyticsWrap.innerHTML = `
+                <span class="pill">📈 Daily Avg: ₹${Math.round(aData.dailyAverage || 0)}</span>
+                <span class="pill">🏆 Top Spend: ${aData.topCategory || 'N/A'}</span>
+            `;
+        }
+
+        const expenses = await apiFetch(`/expenses/${userId}`);
+        renderExpenses(expenses);
+    } catch (e) { console.error("Dashboard engine failure"); }
+}
+
+/**
+ * 🧩 INSIGHTS ENGINE
+ */
+async function setupInsights() {
+    const userId = await getUserId();
+    try {
+        const data = await apiFetch(`/insights/${userId}`);
+        setText('insightPrimaryTitle', data.personality || 'Analyzing...');
+        setText('insightPrimaryDesc', data.message || '');
+        setText('insightStat1', data.topCategory || 'N/A');
+        setText('insightStat2', data.trend || 'Stable');
+        
+        const ctx = document.getElementById('spendChart')?.getContext('2d');
+        if (ctx) {
+            const expenses = await apiFetch(`/expenses/${userId}`);
+            const groups = expenses.reduce((acc, obj) => {
+                const cat = (obj.category || "Other").charAt(0).toUpperCase() + (obj.category || "Other").slice(1).toLowerCase();
+                acc[cat] = (acc[cat] || 0) + obj.amount;
+                return acc;
+            }, {});
+            
+            if (window.mySpendChart) window.mySpendChart.destroy();
+            window.mySpendChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(groups),
+                    datasets: [{
+                        data: Object.values(groups),
+                        backgroundColor: ['#B500FF', '#00E5FF', '#F43F5E', '#10B981', '#F59E0B']
+                    }]
+                },
+                options: { plugins: { legend: { display: false } }, cutout: '70%', responsive: true }
+            });
+        }
+    } catch (e) { console.error("Insights load failure"); }
+}
+
+/**
+ * 💰 SAVINGS MANAGEMENT
+ */
 async function setupSavings() {
     const userId = await getUserId();
     const addSavingForm = document.getElementById('addSavingForm');
@@ -129,160 +239,166 @@ async function setupSavings() {
 
     const fetchSavingsData = async () => {
         try {
-            const res = await fetch(`${API_BASE_URL}/goal/${userId}`);
-            const data = await res.json();
-
-            // Progress Bar (Color logic: Red if behind, Gradient if on track)
+            const data = await apiFetch(`/goal/${userId}`);
             const progress = data.progress || 0;
             const bar = document.getElementById('savingsProgressBarFilled');
             if (bar) {
                 bar.style.width = `${progress}%`;
-                bar.style.background = data.status?.includes('Behind') ? 'var(--accent-danger)' : 'var(--grad-primary)';
+                bar.style.background = data.status?.includes('Behind') ? '#F43F5E' : 'var(--grad-primary)';
             }
-
             setText('goalPercentageNode', `${Math.round(progress)}%`);
-            setText('goalAmountNode', `₹${data.totalSaved?.toLocaleString()} / ₹${data.targetAmount?.toLocaleString()}`);
+            setText('goalAmountNode', `₹${(data.totalSaved || 0).toLocaleString()} / ₹${(data.targetAmount || 0).toLocaleString()}`);
             
-            // Status Badge
             const statusNode = document.getElementById('goalStatusNode');
             if (statusNode) {
-                statusNode.innerText = data.status || "On Track ✅";
+                statusNode.innerText = data.status || 'On Track ✅';
                 statusNode.className = `status-badge ${data.status?.includes('Behind') ? 'status-behind' : 'status-on-track'}`;
             }
 
-            // Cards & Message
-            setText('totalSavingsDisplay', `₹${data.totalSaved?.toLocaleString()}`);
-            setText('remainingAmountDisplay', `₹${data.remainingAmount?.toLocaleString()}`);
+            setText('totalSavingsDisplay', `₹${(data.totalSaved || 0).toLocaleString()}`);
+            setText('remainingAmountDisplay', `₹${(data.remainingAmount || 0).toLocaleString()}`);
             setText('savingsDailyNeed', `₹${Math.round(data.dailySavingsNeeded || 0)}`);
             setText('savingsDaysLeft', data.daysRemaining || 0);
-            setText('savingsDailyMsg', `You need to save ₹${Math.round(data.dailySavingsNeeded || 0)}/day to reach your goal`);
-
-        } catch (e) { showToast("Error connecting to savings engine", "danger"); }
+            setText('savingsDailyMsg', `Target Forecast: ₹${Math.round(data.dailySavingsNeeded || 0)}/day`);
+            
+            // Also fetch savings list
+            const savings = await apiFetch(`/savings/${userId}`);
+            renderSavingsList(savings);
+        } catch (e) { console.error("Savings fetch failure"); }
     };
 
     if (addSavingForm) {
         addSavingForm.onsubmit = async (e) => {
             e.preventDefault();
             const amount = parseFloat(document.getElementById('savingAmountInput').value);
-            const res = await fetch(`${API_BASE_URL}/addSaving`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ userId, amount, date: new Date().toISOString().split('T')[0] })
-            });
-            if (res.ok) {
-                showToast("Saving logged! 💰", "success");
+            try {
+                await apiFetch(`/addSaving`, {
+                    method: 'POST',
+                    body: JSON.stringify({ userId, amount, date: new Date().toISOString().split('T')[0] })
+                });
+                showToast("Saving recorded! 👛", "success");
                 addSavingForm.reset();
-                fetchSavingsData();
-            }
+                await fetchSavingsData();
+                refreshAllMetrics();
+            } catch (e) { showToast("Failed to record saving", "danger"); }
         };
     }
 
     if (setGoalForm) {
         setGoalForm.onsubmit = async (e) => {
             e.preventDefault();
-            const res = await fetch(`${API_BASE_URL}/setGoal`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    userId,
-                    targetAmount: parseFloat(document.getElementById('goalAmountInput').value),
-                    deadline: document.getElementById('goalDateInput').value
-                })
-            });
-            if (res.ok) { showToast("New goal synchronized! 🎯", "success"); fetchSavingsData(); }
+            try {
+                await apiFetch(`/setGoal`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        userId,
+                        targetAmount: parseFloat(document.getElementById('goalAmountInput').value),
+                        deadline: document.getElementById('goalDateInput').value
+                    })
+                });
+                showToast("New strategy defined! 🎯", "success");
+                await fetchSavingsData();
+                refreshAllMetrics();
+            } catch (e) { showToast("Failed to define goal", "danger"); }
         };
     }
-
     fetchSavingsData();
 }
 
-// 🧑 FEATURE 2: PROFILE PHOTO UPLOAD
+/**
+ * 🧑 PROFILE & PREFERENCES
+ */
 async function setupProfile() {
     const userId = await getUserId();
     const avatarInput = document.getElementById('avatarUploadInput');
     const profileForm = document.getElementById('profileForm');
-    const resetBtn = document.getElementById('resetDataBtn');
+    const resetDataBtn = document.getElementById('resetDataBtn');
 
     const loadProfile = async () => {
         try {
-            const res = await fetch(`${API_BASE_URL}/profile/${userId}`);
-            const data = await res.json();
-            
+            const data = await apiFetch(`/profile/${userId}`);
             setValue('profileName', data.name);
-            setValue('profileEmail', data.email);
             setValue('profileBudget', data.monthlyBudget);
             setValue('profileSavings', data.savingsGoal);
+            setText('profileEmail', data.email || "No Email Linked");
 
             const display = document.getElementById('profileImageDisplay');
             const placeholder = document.getElementById('profileAvatarPlaceholder');
-            if (data.imageUrl) {
+            if (data.imageUrl && display && placeholder) {
                 display.src = data.imageUrl;
                 display.style.display = 'block';
                 placeholder.style.display = 'none';
-            } else {
+            } else if (display && placeholder) {
                 display.style.display = 'none';
                 placeholder.style.display = 'flex';
             }
             
-            // Badges
             const badgeContainer = document.getElementById('badgesContainer');
             if (badgeContainer) {
-                const insightRes = await fetch(`${API_BASE_URL}/insights/${userId}`);
-                const insights = await insightRes.json();
-                badgeContainer.innerHTML = insights.badges?.map(b => `<div class="badge-card"><i class="ph ph-shield-star text-gradient"></i> ${b}</div>`).join('') || 'No badges earned yet.';
+                const insights = await apiFetch(`/insights/${userId}`);
+                badgeContainer.innerHTML = insights.badges?.map(b => `<div class="badge-card"><i class="ph ph-shield-star text-gradient"></i> ${b}</div>`).join('') || '<p class="text-secondary text-sm">No badges yet.</p>';
             }
-        } catch (e) { console.error("Profile sync error", e); }
+        } catch (e) { console.error("Profile load failure"); }
     };
 
     if (avatarInput) {
         avatarInput.onchange = async (e) => {
             const file = e.target.files[0];
-            if (!file || !supabaseClient) return showToast("Storage unavailable", "danger");
-            
+            if (!file || !supabaseClient) return;
             try {
-                showToast("Uploading to Supabase...", "info");
+                showToast("Uploading...", "info");
                 const path = `avatars/${userId}-${Date.now()}.png`;
-                const { error } = await supabaseClient.storage.from('profile-images').upload(path, file);
-                if (error) throw error;
+                const { data, error } = await supabaseClient.storage.from('profile-images').upload(path, file);
+                
+                if (error) {
+                    if (error.message?.includes('Bucket not found')) {
+                        throw new Error("Missing 'profile-images' bucket in Supabase! Please create it and set to public.");
+                    }
+                    throw error;
+                }
 
                 const { data: { publicUrl } } = supabaseClient.storage.from('profile-images').getPublicUrl(path);
-                
-                await fetch(`${API_BASE_URL}/profile`, {
+                await apiFetch(`/profile`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ userId, imageUrl: publicUrl })
                 });
-                
-                showToast("Avatar updated! ✨", "success");
-                loadProfile();
-            } catch (err) { showToast("Upload failed", "danger"); }
+                showToast("Avatar synchronized! ✨", "success");
+                await loadProfile();
+                refreshAllMetrics();
+            } catch (err) { 
+                console.error(err); 
+                showToast(err.message || "Upload error", "danger"); 
+            }
         };
     }
 
     if (profileForm) {
         profileForm.onsubmit = async (e) => {
             e.preventDefault();
-            const payload = {
-                userId,
-                name: document.getElementById('profileName').value,
-                email: document.getElementById('profileEmail').value,
-                monthlyBudget: parseFloat(document.getElementById('profileBudget').value),
-                savingsGoal: parseFloat(document.getElementById('profileSavings').value)
-            };
-            const res = await fetch(`${API_BASE_URL}/profile`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            });
-            if (res.ok) showToast("Preferences updated!", "success");
+            try {
+                await apiFetch(`/profile`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        userId,
+                        name: document.getElementById('profileName').value,
+                        monthlyBudget: parseFloat(document.getElementById('profileBudget').value),
+                        savingsGoal: parseFloat(document.getElementById('profileSavings').value)
+                    })
+                });
+                showToast("Profile updated successfully!", "success");
+                refreshAllMetrics();
+            } catch (e) { showToast("Sync failed", "danger"); }
         };
     }
 
-    if (resetBtn) {
-        resetBtn.onclick = async () => {
-            if (confirm("🚨 DANGER: This will wipe all expenses and savings. Continue?")) {
-                const res = await fetch(`${API_BASE_URL}/reset/${userId}`, { method: 'DELETE' });
-                if (res.ok) { showToast("Data wiped successfully", "info"); location.reload(); }
+    if (resetDataBtn) {
+        resetDataBtn.onclick = async () => {
+            if (confirm("🚨 WARNING: This will permanently wipe all your records and goals. Continue?")) {
+                try {
+                    await apiFetch(`/reset/${userId}`, { method: 'DELETE' });
+                    showToast("System Reset Complete", "info");
+                    setTimeout(() => location.reload(), 1000);
+                } catch (e) { showToast("Reset failed", "danger"); }
             }
         };
     }
@@ -290,18 +406,113 @@ async function setupProfile() {
     loadProfile();
 }
 
-// 📷 FEATURE 3: BILL SCANNER
+/**
+ * 🛠 GLOBAL FUNCTIONALITY
+ */
+function setupGlobalNavigation() {
+    const fab = document.getElementById('fabAddModal');
+    const modal = document.getElementById('expenseModal');
+    const submit = document.getElementById('submitExpenseBtn');
+
+    if (fab) fab.onclick = () => modal.classList.add('active');
+    const closeBtn = document.getElementById('closeModalBtn');
+    if (closeBtn) closeBtn.onclick = () => modal.classList.remove('active');
+    
+    document.querySelectorAll('.category-select').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.category-select').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        };
+    });
+
+    if (submit) {
+        submit.onclick = async () => {
+            const amount = parseFloat(document.getElementById('expenseAmount').value);
+            const category = document.querySelector('.category-select.active')?.innerText || "Food";
+            const isRegret = document.getElementById('expenseRegret')?.checked || false;
+
+            if (!amount) return showToast("Amount required", "danger");
+            try {
+                await apiFetch(`/addExpense`, {
+                    method: 'POST',
+                    body: JSON.stringify({ userId: await getUserId(), amount, category, isRegret })
+                });
+                showToast("Transaction Logged! 💳", "success");
+                modal.classList.remove('active');
+                document.getElementById('expenseForm')?.reset();
+                refreshAllMetrics();
+            } catch (e) { showToast("Persistence failed", "danger"); }
+        };
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.onclick = async () => {
+            if (supabaseClient) await supabaseClient.auth.signOut();
+            window.location.href = 'login.html';
+        };
+    }
+}
+
+function renderExpenses(expenses) {
+    const list = document.getElementById('dashPillGroup');
+    if (!list) return;
+    list.innerHTML = expenses.length ? '' : '<p class="text-secondary text-sm">No recent transactions.</p>';
+    expenses.slice(0, 5).forEach(ex => {
+        const item = document.createElement('div');
+        item.className = 'pill';
+        item.style.borderLeft = ex.isRegret ? '3px solid #F43F5E' : 'none';
+        item.innerHTML = `
+            <span>${ex.category || 'Other'} ${ex.isRegret ? '😬' : ''}</span>
+            <span class="font-bold">₹${(ex.amount || 0).toLocaleString()}</span>
+            <button onclick="deleteExpense('${ex.id}')" style="background:none; border:none; color:#F43F5E; cursor:pointer;"><i class="ph ph-trash"></i></button>
+        `;
+        list.appendChild(item);
+    });
+}
+
+function renderSavingsList(savings) {
+    const list = document.getElementById('savingsListContainer');
+    if (!list) return;
+    list.innerHTML = (savings && savings.length) ? '' : '<p class="text-secondary text-sm">No recent savings recorded.</p>';
+    if (!savings || !Array.isArray(savings)) return;
+    
+    savings.slice().reverse().forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'pill';
+        item.style.justifyContent = 'space-between';
+        const date = s.date ? new Date(s.date).toLocaleDateString() : 'N/A';
+        item.innerHTML = `
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <i class="ph ph-trend-up text-success"></i>
+                <span>${date}</span>
+            </div>
+            <span class="font-bold">+ ₹${(s.amount || 0).toLocaleString()}</span>
+        `;
+        list.appendChild(item);
+    });
+}
+
+async function deleteExpense(id) {
+    if (confirm("Remove this transaction?")) {
+        try {
+            await apiFetch(`/expense/${id}`, { method: 'DELETE' });
+            showToast("Record removed", "info");
+            refreshAllMetrics();
+        } catch (e) { showToast("Delete failed", "danger"); }
+    }
+}
+
+/**
+ * 📷 BILL SCANNER
+ */
 function setupBillScan() {
     const scanBtn = document.getElementById('scanBillBtn');
     const modal = document.getElementById('cameraModal');
     const video = document.getElementById('cameraPreview');
-    const captureBtn = document.getElementById('captureBtn');
-    const confirmBtn = document.getElementById('confirmScanBtn');
-    const retakeBtn = document.getElementById('retakeBtn');
     const canvas = document.getElementById('cameraCanvas');
     const previewImg = document.getElementById('capturedImage');
     const previewWrap = document.getElementById('capturePreviewContainer');
-    const closeBtn = document.getElementById('closeCameraBtn');
 
     let stream = null;
 
@@ -318,172 +529,96 @@ function setupBillScan() {
         };
     }
 
+    const captureBtn = document.getElementById('captureBtn');
     if (captureBtn) {
         captureBtn.onclick = () => {
             const ctx = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0);
             previewImg.src = canvas.toDataURL('image/png');
             video.style.display = 'none';
             previewWrap.style.display = 'block';
             captureBtn.style.display = 'none';
-            confirmBtn.style.display = 'inline-block';
-            retakeBtn.style.display = 'inline-block';
+            document.getElementById('confirmScanBtn').style.display = 'inline-block';
+            document.getElementById('retakeBtn').style.display = 'inline-block';
         };
     }
 
-    if (retakeBtn) {
-        retakeBtn.onclick = () => {
-            video.style.display = 'block';
-            previewWrap.style.display = 'none';
-            captureBtn.style.display = 'inline-block';
-            confirmBtn.style.display = 'none';
-            retakeBtn.style.display = 'none';
-        };
-    }
+    document.getElementById('retakeBtn').onclick = () => {
+        video.style.display = 'block'; previewWrap.style.display = 'none';
+        document.getElementById('captureBtn').style.display = 'inline-block';
+        document.getElementById('confirmScanBtn').style.display = 'none';
+        document.getElementById('retakeBtn').style.display = 'none';
+    };
 
-    if (confirmBtn) {
-        confirmBtn.onclick = async () => {
-            const val = prompt("Enter bill amount detected:", "0.00");
-            if (val && !isNaN(val)) {
-                const userId = await getUserId();
-                await fetch(`${API_BASE_URL}/addExpense`, {
+    document.getElementById('confirmScanBtn').onclick = async () => {
+        const val = prompt("Enter bill amount detected by AI:", "0.00");
+        if (val && !isNaN(val)) {
+            try {
+                await apiFetch(`/addExpense`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ userId, amount: parseFloat(val), category: 'Bills', isRegret: false })
+                    body: JSON.stringify({ userId: await getUserId(), amount: parseFloat(val), category: 'Bills', isRegret: false })
                 });
-                showToast(`Logged ₹${val} via Scanner`, "success");
+                showToast(`Scanned ₹${val}`, "success");
                 stopCamera();
-                if (window.location.pathname.includes('dashboard.html')) setupDashboard();
-            }
-        };
-    }
+                refreshAllMetrics();
+            } catch (e) { showToast("Scan processing failed", "danger"); }
+        }
+    };
 
     const stopCamera = () => {
         if (stream) stream.getTracks().forEach(t => t.stop());
         modal.classList.remove('active');
-        video.style.display = 'block';
-        previewWrap.style.display = 'none';
-        captureBtn.style.display = 'inline-block';
-        confirmBtn.style.display = 'none';
-        retakeBtn.style.display = 'none';
+        video.style.display = 'block'; previewWrap.style.display = 'none';
+        document.getElementById('captureBtn').style.display = 'inline-block';
+        document.getElementById('confirmScanBtn').style.display = 'none';
+        document.getElementById('retakeBtn').style.display = 'none';
     };
 
-    if (closeBtn) closeBtn.onclick = stopCamera;
+    const closeCameraBtn = document.getElementById('closeCameraBtn');
+    if (closeCameraBtn) closeCameraBtn.onclick = stopCamera;
 }
 
-// 📊 DASHBOARD ENGINE
-async function setupDashboard() {
-    const userId = await getUserId();
-    const greet = document.getElementById('dashGreeting');
-    
-    try {
-        // Analytics Pill
-        const analyticsRes = await fetch(`${API_BASE_URL}/analytics/${userId}`);
-        const analytics = await analyticsRes.json();
-        const analyticsWrap = document.getElementById('analyticsGroup');
-        if (analyticsWrap) {
-            analyticsWrap.innerHTML = `
-                <span class="pill">📈 Monthly Avg: ₹${Math.round(analytics.dailyAverage)}</span>
-                <span class="pill">🏆 Top Spend: ${analytics.topCategory}</span>
-            `;
-        }
-
-        // Budget & Health
-        const [budgetRes, healthRes] = await Promise.all([
-            fetch(`${API_BASE_URL}/budget/${userId}`),
-            fetch(`${API_BASE_URL}/health/${userId}`)
-        ]);
-        const bData = await budgetRes.json();
-        const hData = await healthRes.json();
-
-        setText('dashTodaySpend', `₹${bData.spent?.toLocaleString()}`);
-        setText('dashBudgetRemaining', `₹${bData.remaining?.toLocaleString()}`);
-        setText('dashHealthScore', hData.score);
-        setText('dashHealthStatus', hData.status);
-        setText('dashHealthMessage', hData.message);
-
-        // Savings Goal Sync
-        const goalRes = await fetch(`${API_BASE_URL}/goal/${userId}`);
-        const gData = await goalRes.json();
-        setText('dashGoalSpend', `₹${gData.totalSaved?.toLocaleString()} / ₹${gData.targetAmount?.toLocaleString()}`);
-
-        // Predictions & Regret
-        const insightsRes = await fetch(`${API_BASE_URL}/insights/${userId}`);
-        const iData = await insightsRes.json();
-        setText('dashPredictionAmount', `₹${Math.round(bData.spent * 1.2)}`); // Simplified prediction
-        setText('dashPredictionMessage', `Based on ${iData.trend} trend`);
-        
-        // Expenses List
-        const expRes = await fetch(`${API_BASE_URL}/expenses/${userId}`);
-        const expenses = await expRes.json();
-        renderExpenses(expenses);
-
-    } catch (e) { console.error("Dashboard engine failed", e); }
-}
-
-// 🧩 INSIGHTS ENGINE
-async function setupInsights() {
-    const userId = await getUserId();
-    try {
-        const res = await fetch(`${API_BASE_URL}/insights/${userId}`);
-        const data = await res.json();
-        
-        setText('insightPrimaryTitle', data.personality || "Economic Observer");
-        setText('insightPrimaryDesc', data.message || "Log more expenses to unlock AI personality profiles.");
-        setText('insightStat1', data.topCategory || "N/A");
-        setText('insightStat2', data.trend || "Neutral");
-        
-        const ctx = document.getElementById('spendChart')?.getContext('2d');
-        if (ctx) {
-            const expRes = await fetch(`${API_BASE_URL}/expenses/${userId}`);
-            const expenses = await expRes.json();
-            const groups = expenses.reduce((acc, obj) => {
-                acc[obj.category] = (acc[obj.category] || 0) + obj.amount;
-                return acc;
-            }, {});
-            
-            new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(groups),
-                    datasets: [{
-                        data: Object.values(groups),
-                        backgroundColor: ['#B500FF', '#00E5FF', '#F43F5E', '#10B981', '#F59E0B']
-                    }]
-                },
-                options: { plugins: { legend: { display: false } }, cutout: '70%', responsive: true }
-            });
-        }
-    } catch (e) { console.error("Insights failed", e); }
-}
-
-// 🔔 REAL-TIME ALERTS
-async function triggerAlertToasts() {
-    const userId = await getUserId();
-    try {
-        const res = await fetch(`${API_BASE_URL}/alerts/${userId}`);
-        const alerts = await res.json();
-        const container = document.getElementById('dashAlertsContainer');
-        
-        if (container) container.innerHTML = '';
-        alerts.forEach((alert, i) => {
-            // Render on dashboard
-            if (container) {
-                const div = document.createElement('div');
-                div.className = 'alert-item';
-                div.style.animationDelay = `${i * 0.1}s`;
-                div.innerHTML = `<div class="alert-icon danger"><i class="ph ph-warning"></i></div><div class="alert-content"><h4>${alert.type || 'Alert'}</h4><p>${alert.message}</p></div>`;
-                container.appendChild(div);
+/**
+ * 💉 AUTH HELPERS
+ */
+async function setupLogin() {
+    const form = document.getElementById('loginForm');
+    if (!form) return;
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        try {
+            if (supabaseClient) {
+                const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) throw error;
             }
-            // Trigger Toast for critical issues
-            if (i === 0) showToast(`⚠️ ${alert.message}`, "danger");
-        });
-    } catch (e) {}
+            showToast("Welcome! ✨", "success");
+            setTimeout(() => window.location.href = 'dashboard.html', 800);
+        } catch (err) { showToast(err.message, "danger"); }
+    };
 }
 
-// 🛠 UTILITIES
+async function setupSignup() {
+    const form = document.getElementById('signupForm');
+    if (!form) return;
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        try {
+            if (supabaseClient) {
+                const { error } = await supabaseClient.auth.signUp({ email, password });
+                if (error) throw error;
+            }
+            showToast("Account created! Verify your email.", "success");
+            setTimeout(() => window.location.href = 'login.html', 1500);
+        } catch (err) { showToast(err.message, "danger"); }
+    };
+}
+
+// Global UI Helpers
 function setText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
 function setValue(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
 
@@ -493,70 +628,4 @@ function showToast(msg, type = "info") {
     toast.innerHTML = `<i class="ph ph-${type === 'danger' ? 'warning-octagon' : type === 'success' ? 'check-circle' : 'info'}"></i> ${msg}`;
     document.body.appendChild(toast);
     setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 400); }, 3000);
-}
-
-function setupGlobalNavigation() {
-    const fab = document.getElementById('fabAddModal');
-    const modal = document.getElementById('expenseModal');
-    const close = document.getElementById('closeModalBtn');
-    const submit = document.getElementById('submitExpenseBtn');
-
-    if (fab) fab.onclick = () => modal.classList.add('active');
-    if (close) close.onclick = () => modal.classList.remove('active');
-    
-    // Logout Logic
-    const logoutBtn = document.querySelector('[aria-label="Logout"]') || document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.onclick = async () => {
-            if (supabaseClient) await supabaseClient.auth.signOut();
-            showToast("Signed out", "info");
-            setTimeout(() => window.location.href = 'login.html', 500);
-        };
-    }
-
-    if (submit) {
-        submit.onclick = async () => {
-            const amount = parseFloat(document.getElementById('expenseAmount').value);
-            const category = document.querySelector('.category-select.active')?.innerText || "Food";
-            if (!amount) return showToast("Please enter an amount", "danger");
-            
-            const res = await fetch(`${API_BASE_URL}/addExpense`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ userId: await getUserId(), amount, category, isRegret: false })
-            });
-
-            if (res.ok) {
-                showToast("Transaction Logged! 💳", "success");
-                modal.classList.remove('active');
-                if (window.location.pathname.includes('dashboard.html')) setupDashboard();
-            }
-        };
-    }
-
-    document.querySelectorAll('.category-select').forEach(btn => {
-        btn.onclick = () => {
-            document.querySelectorAll('.category-select').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        };
-    });
-}
-
-function renderExpenses(expenses) {
-    const list = document.getElementById('dashPillGroup');
-    if (!list) return;
-    list.innerHTML = expenses.length ? '' : '<p class="text-secondary text-sm">No recent transactions.</p>';
-    expenses.slice(0, 4).forEach(ex => {
-        const item = document.createElement('div');
-        item.className = 'pill';
-        item.innerHTML = `<span>${ex.category}</span><span class="font-bold">₹${ex.amount.toLocaleString()}</span><button onclick="deleteExpense('${ex.id}')" style="background:none; border:none; color:var(--accent-danger); cursor:pointer;"><i class="ph ph-trash"></i></button>`;
-        list.appendChild(item);
-    });
-}
-
-async function deleteExpense(id) {
-    if (confirm("Delete this expense?")) {
-        const res = await fetch(`${API_BASE_URL}/expense/${id}`, { method: 'DELETE' });
-        if (res.ok) { showToast("Deleted", "info"); setupDashboard(); }
-    }
 }

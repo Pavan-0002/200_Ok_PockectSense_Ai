@@ -29,11 +29,13 @@ public class InsightService {
             return new InsightResponse("New Spender", "None", "Stable", "Start logging expenses to generate AI insights.", new ArrayList<>());
         }
 
+        System.out.println("Processing Insights for user: " + userId + " | Total Expenses: " + expenses.size());
+
         double totalSpending = expenses.stream().mapToDouble(Expense::getAmount).sum();
         
         Map<String, Double> categorySpending = expenses.stream()
                 .collect(Collectors.groupingBy(
-                        Expense::getCategory,
+                        e -> e.getCategory().toLowerCase(),
                         Collectors.summingDouble(Expense::getAmount)
                 ));
         
@@ -42,43 +44,38 @@ public class InsightService {
             .map(Map.Entry::getKey)
             .orElse("None");
         
-        double weekendSpending = expenses.stream()
-                .filter(e -> {
-                    if (e.getCreatedAt() != null) {
-                        DayOfWeek day = e.getCreatedAt().getDayOfWeek();
-                        return day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY;
-                    }
-                    return false;
-                })
-                .mapToDouble(Expense::getAmount).sum();
+        double foodSpending = categorySpending.getOrDefault("food", 0.0) + categorySpending.getOrDefault("restaurant", 0.0) + categorySpending.getOrDefault("dining", 0.0);
+        double foodPercentage = totalSpending > 0 ? (foodSpending / totalSpending) * 100 : 0;
+
+        double weekendSpending = 0;
+        double weekdaySpending = 0;
+        for (Expense e : expenses) {
+            if (e.getCreatedAt() != null) {
+                DayOfWeek day = e.getCreatedAt().getDayOfWeek();
+                if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) weekendSpending += e.getAmount();
+                else weekdaySpending += e.getAmount();
+            }
+        }
 
         String personality = "Balanced Spender";
-        if (totalSpending > 0 && ("food".equalsIgnoreCase(topCategory) || "restaurant".equalsIgnoreCase(topCategory))) {
+        if (foodPercentage > 40) {
             personality = "Foodie Spender";
-        } else if (totalSpending > 0 && (weekendSpending / totalSpending) > 0.40) {
+        } else if (weekendSpending > weekdaySpending && totalSpending > 0) {
             personality = "Weekend Spender";
         }
 
-        String trend = "Increasing";
+        String trend = "Stable";
         String message = "Your spending patterns indicate a high concentration in " + topCategory + ".";
 
         List<String> badges = new ArrayList<>();
-        badges.add("Starter Log"); // Everyone gets this
+        badges.add("Starter Log"); 
         
         Profile profile = profileRepository.findByUserId(userId).orElse(null);
-        if (profile != null && profile.getMonthlyBudget() != null) {
-            if (totalSpending < profile.getMonthlyBudget() * 0.5) {
-                badges.add("Budget Boss");
-            }
-        }
-        if (expenses.size() > 10) {
-            badges.add("Consistent Tracker");
-        }
-        if (personality.equals("Saver")) {
-            badges.add("Savings Champion");
-        } else if (personality.equals("Balanced Spender")) {
-            badges.add("Balance Master");
-        }
+        double monthlyBudget = (profile != null && profile.getMonthlyBudget() != null) ? profile.getMonthlyBudget() : 5000.0;
+
+        if (totalSpending < monthlyBudget * 0.5) badges.add("Budget Boss");
+        if (expenses.size() > 10) badges.add("Consistent Tracker");
+        if (personality.contains("Foodie")) badges.add("Culinary Enthusiast");
 
         return new InsightResponse(personality, topCategory, trend, message, badges);
     }
@@ -86,23 +83,24 @@ public class InsightService {
     public List<AlertResponse> getAlerts(UUID userId) {
         List<Expense> expenses = expenseRepository.findByUserId(userId);
         List<AlertResponse> alerts = new ArrayList<>();
-
         if (expenses.isEmpty()) return alerts;
 
         Map<String, DoubleSummaryStatistics> categoryStats = expenses.stream()
                 .collect(Collectors.groupingBy(
-                        Expense::getCategory,
+                        e -> e.getCategory().toLowerCase(),
                         Collectors.summarizingDouble(Expense::getAmount)
                 ));
 
-        for (Expense expense : expenses) {
-            DoubleSummaryStatistics stats = categoryStats.get(expense.getCategory());
+        // Detect 2x Average Anomalies for recent expenses
+        for (int i = Math.max(0, expenses.size() - 5); i < expenses.size(); i++) {
+            Expense expense = expenses.get(i);
+            DoubleSummaryStatistics stats = categoryStats.get(expense.getCategory().toLowerCase());
             double average = stats.getAverage();
             
-            if (average > 0 && expense.getAmount() > (2 * average) && stats.getCount() > 1) {
+            if (stats.getCount() > 1 && expense.getAmount() > (2 * average)) {
                 alerts.add(new AlertResponse(
-                        "warning",
-                        "Unusual spending: " + expense.getAmount() + " on " + expense.getCategory(),
+                        "danger",
+                        "⚠️ Unusual spending: ₹" + expense.getAmount() + " on " + expense.getCategory(),
                         expense.getCategory(),
                         expense.getAmount(),
                         average
@@ -110,18 +108,15 @@ public class InsightService {
             }
         }
 
-        // Check budget logic
         Profile profile = profileRepository.findByUserId(userId).orElse(null);
         if(profile != null && profile.getMonthlyBudget() != null) {
-            double monthlyBudget = profile.getMonthlyBudget();
+            double budget = profile.getMonthlyBudget();
             double totalSpent = expenses.stream().mapToDouble(Expense::getAmount).sum();
             
-            if(totalSpent > monthlyBudget) {
-                alerts.add(0, new AlertResponse("danger", "You have exceeded your monthly budget!", "General", totalSpent, monthlyBudget));
-            } else if(totalSpent > monthlyBudget * 0.8) {
-                alerts.add(0, new AlertResponse("warning", "You have spent over 80% of your budget.", "General", totalSpent, monthlyBudget));
-            } else {
-                alerts.add(0, new AlertResponse("tips", "You are within your safe budget limits.", "General", totalSpent, monthlyBudget));
+            if(totalSpent > budget) {
+                alerts.add(0, new AlertResponse("danger", "🚨 CRITICAL: Budget Exceeded!", "Financial Health", totalSpent, budget));
+            } else if(totalSpent > budget * 0.8) {
+                alerts.add(0, new AlertResponse("warning", "⚠️ Caution: Over 80% budget used.", "Warning", totalSpent, budget));
             }
         }
 
@@ -131,31 +126,21 @@ public class InsightService {
     public com.pocketsense.dto.HealthResponse getHealthScore(UUID userId) {
         List<Expense> expenses = expenseRepository.findByUserId(userId);
         Profile profile = profileRepository.findByUserId(userId).orElse(null);
-
-        if (expenses.isEmpty()) {
-            return new com.pocketsense.dto.HealthResponse(100, "Excellent", "Start tracking expenses to keep up the good work.");
-        }
-
         double monthlyBudget = (profile != null && profile.getMonthlyBudget() != null) ? profile.getMonthlyBudget() : 5000.0;
         double totalSpent = expenses.stream().mapToDouble(Expense::getAmount).sum();
+        
         long regretCount = expenses.stream().filter(e -> Boolean.TRUE.equals(e.getIsRegret())).count();
         double regretPercentage = expenses.isEmpty() ? 0 : ((double) regretCount / expenses.size()) * 100;
 
-        int score = 100;
+        // score = 100 - overspending - regret%
+        double overspendAmt = Math.max(0, totalSpent - monthlyBudget);
+        double overspendPenalty = (overspendAmt / monthlyBudget) * 50; // Normalize overspend
         
-        // Penalize for overspending
-        if (totalSpent > monthlyBudget) score -= 30;
-        else if (totalSpent > monthlyBudget * 0.8) score -= 10;
-        else score += 5; // Reward safe spending
+        int score = (int) (100 - Math.min(50, overspendPenalty) - Math.min(50, regretPercentage));
+        score = Math.max(0, Math.min(100, score));
         
-        // Penalize for high regret
-        if (regretPercentage > 50) score -= 20;
-        else if (regretPercentage > 20) score -= 10;
-
-        score = Math.max(0, Math.min(100, score)); // Clamp between 0-100
-        
-        String status = score >= 80 ? "Good" : (score >= 50 ? "Average" : "Poor");
-        String message = score >= 80 ? "You are managing your finances well." : "Watch your spending habits.";
+        String status = score >= 80 ? "Pristine ✅" : (score >= 50 ? "Stable ⚠️" : "Critical 🚨");
+        String message = score >= 80 ? "Excellent financial management." : "Optimization required in spending habits.";
 
         return new com.pocketsense.dto.HealthResponse(score, status, message);
     }

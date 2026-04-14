@@ -118,13 +118,22 @@
             
             <div class="form-group mb-4">
               <label class="form-label">DEADLINE DATE</label>
-              <input type="date" id="goalDateInput" class="form-input text-secondary" required>
+              <input type="date" id="goalDateInput" class="form-input text-secondary" onfocus="(this.min=new Date().toISOString().split('T')[0])" required>
             </div>
 
             <button type="submit" class="btn btn-primary" id="setGoalBtn" style="width:100%;">
               <i class="ph ph-target"></i> Define New Goal
             </button>
           </form>
+        </div>
+      </div>
+      <div class="card mt-4 p-6">
+        <h2 class="card-title mb-4"><i class="ph ph-clock-counter-clockwise"></i> Recent Savings</h2>
+        <div id="savingsListContainer" class="pill-group" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="text-center py-8" style="opacity: 0.6;">
+                <i class="ph ph-empty text-4xl mb-2"></i>
+                <p class="text-secondary text-sm">Your savings journey starts here. Log your first saving above!</p>
+            </div>
         </div>
       </div>
     </main>

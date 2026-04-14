@@ -29,12 +29,27 @@ public class GoalService {
     @Autowired
     private SavingRepository savingRepository;
 
-    public Goal setGoal(GoalRequest request) {
-        Goal goal = new Goal();
+    public Goal saveGoal(GoalRequest request) {
+        List<Goal> existing = goalRepository.findAllByUserId(request.getUserId());
+        Goal goal = existing.isEmpty() ? new Goal() : existing.get(0);
         goal.setUserId(request.getUserId());
         goal.setTargetAmount(request.getTargetAmount());
         goal.setDeadline(request.getDeadline());
+        // Reset createdAt to now when updating goal to start measuring progress fresh
+        goal.setCreatedAt(LocalDate.now());
         return goalRepository.save(goal);
+    }
+
+    public List<com.pocketsense.model.Saving> getSavingsByUserId(UUID userId) {
+        return savingRepository.findByUserId(userId);
+    }
+
+    public com.pocketsense.model.Saving saveSaving(com.pocketsense.dto.SavingRequest request) {
+        com.pocketsense.model.Saving saving = new com.pocketsense.model.Saving();
+        saving.setUserId(request.getUserId());
+        saving.setAmount(request.getAmount());
+        saving.setDate(request.getDate() != null ? request.getDate() : LocalDate.now());
+        return savingRepository.save(saving);
     }
 
     public GoalResponse getGoalResponse(UUID userId) {
@@ -57,8 +72,9 @@ public class GoalService {
         }
 
         double dailySavingsNeeded = 0.0;
-        if (daysRemaining > 0) {
-            dailySavingsNeeded = remainingAmount / daysRemaining;
+        if (remainingAmount > 0) {
+            long divisor = Math.max(1, daysRemaining);
+            dailySavingsNeeded = remainingAmount / divisor;
         }
         
         String status = "On Track ✅";
