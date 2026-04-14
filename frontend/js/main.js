@@ -1,5 +1,5 @@
 // PocketSense AI - Optimized Core Application Logic
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = '200okkrishjaiswar-production.up.railway.app';
 let supabaseClient = null;
 
 const MOCK_USER_ID = '123e4567-e89b-12d3-a456-426614174000';
