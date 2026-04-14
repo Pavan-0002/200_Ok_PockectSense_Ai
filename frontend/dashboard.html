@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PocketSense AI - Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .alert-icon.danger { color: #ff4d4d !important; background: rgba(255, 77, 77, 0.1) !important; }
+    .alert-icon.warning { color: #f59e0b !important; background: rgba(245, 158, 11, 0.1) !important; }
+    .alert-icon.success { color: #10b981 !important; background: rgba(16, 185, 129, 0.1) !important; }
+    html { scroll-behavior: smooth; }
+    
+    /* Camera Modal Styles */
+    #cameraModal .modal-content { max-width: 600px; padding: 1rem; }
+    #cameraPreview { width: 100%; border-radius: 12px; transform: scaleX(-1); background: #000; }
+    .camera-controls { display: flex; justify-content: center; gap: 1rem; margin-top: 1rem; }
+  </style>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  
+  <div class="app-container">
+    <header class="navbar">
+      <div class="logo">
+        <span class="text-gradient">PocketSense AI</span>
+      </div>
+      <nav class="nav-links">
+        <a href="dashboard.html" class="nav-link active">DASHBOARD</a>
+        <a href="insights.html" class="nav-link">INSIGHTS</a>
+        <a href="savings.html" class="nav-link">SAVINGS</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="btn-icon" aria-label="Notifications"><i class="ph ph-bell"></i></button>
+        <button class="btn-icon" aria-label="Profile" onclick="window.location.href='profile.html'"><i class="ph ph-user-circle"></i></button>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="mb-8 flex justify-between items-end">
+        <div>
+          <p class="text-sm text-secondary font-medium mb-1">TODAY</p>
+          <h1 class="text-3xl" id="dashGreeting">Welcome back. <span class="text-gradient">✨</span></h1>
+        </div>
+        <button class="btn btn-primary" id="scanBillBtn" style="width: auto; padding: 0.6rem 1.2rem; background: var(--grad-primary);">
+            <i class="ph ph-camera"></i> Scan Bill
+        </button>
+      </div>
+
+      <div class="pill-group" id="analyticsGroup" style="margin-bottom: 2rem;">
+         <span class="text-sm text-secondary"><i class="ph ph-spinner ph-spin"></i> Analyzing spending metrics...</span>
+      </div>
+
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">CONSOLIDATED VIEW</h2>
+            <span class="badge">PRO TIER</span>
+          </div>
+          <p class="text-secondary text-sm mb-2">Total Spending</p>
+          <div class="amount-large mb-4" id="dashTodaySpend">
+            <i class="ph ph-spinner ph-spin"></i> Loading...
+          </div>
+          <div class="pill-group" id="dashPillGroup"></div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
+          <h2 class="card-title w-full text-left mb-4 mt-0">MONTHLY BUDGET</h2>
+          <p class="text-sm text-secondary mb-1">Remaining Budget</p>
+          <p class="text-3xl font-bold mb-4" id="dashBudgetRemaining"><i class="ph ph-spinner ph-spin"></i></p>
+          <p class="text-sm text-secondary mb-1">Savings Goal Progress</p>
+          <p class="text-lg font-bold" id="dashGoalSpend">--</p>
+        </div>
+      </div>
+
+      <div class="dashboard-grid my-6">
+        <div class="card" style="display: flex; flex-direction: column; justify-content: center;">
+          <div class="card-header"><h2 class="card-title"><i class="ph ph-heartbeat"></i> HEALTH SCORE</h2></div>
+          <div style="display: flex; align-items: baseline; gap: 0.5rem;" class="mb-2">
+            <h3 class="text-4xl font-bold" id="dashHealthScore"><i class="ph ph-spinner ph-spin"></i></h3>
+            <span class="text-sm text-secondary">/ 100</span>
+          </div>
+          <p class="text-sm font-medium mb-1" id="dashHealthStatus">Loading...</p>
+          <p class="text-xs text-secondary" id="dashHealthMessage">Analyzing...</p>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: center;">
+          <div class="card-header"><h2 class="card-title"><i class="ph ph-crystal-ball"></i> PREDICTION</h2></div>
+          <p class="text-sm text-secondary mb-1">Expected Monthly Spend</p>
+          <h3 class="text-2xl font-bold mb-2" id="dashPredictionAmount"><i class="ph ph-spinner ph-spin"></i></h3>
+          <p class="text-sm font-medium" id="dashPredictionMessage">Predicting...</p>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: center;">
+          <div class="card-header"><h2 class="card-title"><i class="ph ph-brain"></i> REGRET INTEL</h2></div>
+          <div style="display: flex; align-items: baseline; gap: 0.5rem;" class="mb-2">
+            <h3 class="text-3xl font-bold" id="dashRegretPercent"><i class="ph ph-spinner ph-spin"></i></h3>
+            <span class="text-sm text-secondary">regret rate</span>
+          </div>
+          <p class="text-sm font-medium mb-1" id="dashRegretMessage">Loading...</p>
+        </div>
+      </div>
+
+      <div class="card my-6">
+        <h2 class="card-title mb-4">RECENT ALERTS</h2>
+        <div id="dashAlertsContainer"></div>
+      </div>
+    </main>
+    <button class="fab" id="fabAddModal"><i class="ph ph-plus"></i></button>
+  </div>
+
+  <!-- Add Expense Modal -->
+  <div class="modal-overlay" id="expenseModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="modal-subtitle">LOG TRANSACTION</p>
+        <h2 class="modal-title">New Expense</h2>
+      </div>
+      <form id="expenseForm">
+        <div class="form-group">
+          <label class="form-label">AMOUNT (₹)</label>
+          <div class="amount-input-wrapper">
+             <span class="amount-prefix">₹</span>
+             <input type="number" id="expenseAmount" class="form-input amount-input" placeholder="0.00" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">CATEGORY</label>
+          <div class="category-options">
+            <div class="category-btn category-select">Food</div>
+            <div class="category-btn category-select active">Movie</div>
+            <div class="category-btn category-select">Travel</div>
+            <div class="category-btn category-select">Bills</div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary" id="submitExpenseBtn" style="width: 100%;">Add Expense</button>
+        <button type="button" class="btn btn-outline" id="closeModalBtn" style="width: 100%; border: none; margin-top: 0.5rem;">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Camera Scanner Modal -->
+  <div class="modal-overlay" id="cameraModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <p class="modal-subtitle">AI BILL SCANNER</p>
+            <h2 class="modal-title">Scan your Receipt</h2>
+        </div>
+        <video id="cameraPreview" autoplay playsinline></video>
+        <canvas id="cameraCanvas" style="display: none;"></canvas>
+        <div id="capturePreviewContainer" style="display: none; text-align: center;">
+            <img id="capturedImage" style="width: 100%; border-radius: 12px; margin-bottom: 1rem;">
+        </div>
+        <div class="camera-controls">
+            <button id="captureBtn" class="btn btn-primary"><i class="ph ph-camera"></i> Capture</button>
+            <button id="confirmScanBtn" class="btn btn-primary" style="display: none; background: var(--accent-success);">Confirm & Enter Amount</button>
+            <button id="retakeBtn" class="btn btn-outline" style="display: none;">Retake</button>
+            <button id="closeCameraBtn" class="btn btn-outline">Exit</button>
+        </div>
+    </div>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

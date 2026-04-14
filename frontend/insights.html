@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PocketSense AI - Insights</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .alert-icon.danger { color: #ff4d4d !important; background: rgba(255, 77, 77, 0.1) !important; }
+    .alert-icon.warning { color: #f59e0b !important; background: rgba(245, 158, 11, 0.1) !important; }
+    .alert-icon.success { color: #10b981 !important; background: rgba(16, 185, 129, 0.1) !important; }
+    html { scroll-behavior: smooth; }
+  </style>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  
+  <div class="app-container">
+    <header class="navbar">
+      <div class="logo">
+        <span class="text-gradient">PocketSense AI</span>
+      </div>
+      <nav class="nav-links">
+        <a href="dashboard.html" class="nav-link">DASHBOARD</a>
+        <a href="insights.html" class="nav-link active">INSIGHTS</a>
+        <a href="savings.html" class="nav-link">SAVINGS</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="btn-icon" aria-label="Notifications"><i class="ph ph-bell"></i></button>
+        <button class="btn-icon" aria-label="Profile" onclick="window.location.href='profile.html'"><i class="ph ph-user-circle"></i></button>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="mb-8" style="display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+          <p class="text-sm text-secondary font-medium mb-1">AI FINANCIAL INTELLIGENCE</p>
+          <h1 class="text-3xl">AI Insights</h1>
+        </div>
+        <button class="btn btn-outline" style="width: auto; padding: 0.5rem 1rem; border-radius: 4px; font-size:0.875rem;">
+            <i class="ph ph-calendar"></i> Current
+        </button>
+      </div>
+
+      <!-- Main Feature Grid -->
+      <div class="insights-grid">
+        <div class="card feature-card" style="display:flex; flex-direction:column; justify-content:center;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <div>
+                  <span class="badge mb-4" style="display:inline-block">BEHAVIORAL AI DETECTED</span>
+                  <h2 class="text-3xl mb-4 text-gradient" id="insightPrimaryTitle">
+                      <i class="ph ph-spinner ph-spin"></i> Loading Insight...
+                  </h2>
+                  <p class="text-secondary text-sm mb-6" id="insightPrimaryDesc" style="max-width:300px; line-height:1.6;">
+                      Awaiting AI model response based on your recent transactions...
+                  </p>
+              </div>
+              <div style="width:100px;height:100px;background:var(--grad-primary);border-radius:20px;transform:rotate(12deg);display:flex;align-items:center;justify-content:center;font-size:3rem;">
+                  🧠
+              </div>
+          </div>
+          <div style="display:flex;gap:1rem;">
+              <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:var(--radius-sm);flex:1;">
+                  <p class="text-xs text-secondary mb-1">METRIC 1</p>
+                  <p class="font-bold" id="insightStat1">-</p>
+              </div>
+              <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:var(--radius-sm);flex:1;">
+                  <p class="text-xs text-secondary mb-1">METRIC 2</p>
+                  <p class="font-bold" id="insightStat2">-</p>
+              </div>
+              <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:var(--radius-sm);flex:1;">
+                  <p class="text-xs text-secondary mb-1">RISK LEVEL</p>
+                  <p class="font-bold text-danger">Calculated</p>
+              </div>
+          </div>
+        </div>
+
+        <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+           <div>
+            <p class="text-xs text-secondary mb-4 tracking-wide uppercase">Category Spending</p>
+            <div style="position: relative; height: 250px; width: 100%; display: flex; justify-content: center; align-items: center;">
+                <canvas id="spendChart"></canvas>
+            </div>
+            <h3 class="text-xl text-center mb-2 mt-4" id="chartSecondaryTitle">Analytics Ready</h3>
+            <p class="text-sm text-secondary text-center mb-6">Chart dynamically generated from logged expenses.</p>
+           </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+  
+  <script src="js/main.js"></script>
+</body>
+</html>
