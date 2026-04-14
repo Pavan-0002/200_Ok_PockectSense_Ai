@@ -1,5 +1,6 @@
 // PocketSense AI - Optimized Core Application Logic
-const API_BASE_URL = '200okkrishjaiswar-production.up.railway.app';
+const BASE_URL = 'https://200okkrishjaiswar-production.up.railway.app';
+const API_BASE_URL = `${BASE_URL}/api`;
 let supabaseClient = null;
 
 const MOCK_USER_ID = '123e4567-e89b-12d3-a456-426614174000';
@@ -38,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function initSupabase() {
     try {
         // Absolute URL to ensure file-system execution works
-        const res = await fetch('http://localhost:8080/auth-config');
+        const res = await fetch(`${BASE_URL}/auth-config`);
         if (!res.ok) throw new Error("Could not fetch auth config");
         const config = await res.json();
         
@@ -77,27 +78,32 @@ async function getUserId() {
 /**
  * 💉 API HELPER
  */
-async function apiFetch(endpoint, options = {}) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...(options.headers || {})
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+            }
+        });
+        
+        if (!response.ok) {
+            const errorMsg = await response.text();
+            console.error(`API Error (${response.status}) at ${endpoint}:`, errorMsg);
+            throw new Error(errorMsg || `API Error: ${response.status}`);
         }
-    });
-    
-    if (!response.ok) {
-        const errorMsg = await response.text();
-        throw new Error(errorMsg || `API Error: ${response.status}`);
+        
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+            const data = await response.json();
+            console.log(`Response from ${endpoint}:`, data);
+            return data;
+        }
+        return null;
+    } catch (error) {
+        console.error(`Fetch Failure at ${endpoint}:`, error);
+        throw error;
     }
-    
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-        const data = await response.json();
-        console.log("Response:", data);
-        return data;
-    }
-    return null;
 }
 
 /**
@@ -441,7 +447,10 @@ function setupGlobalNavigation() {
                 modal.classList.remove('active');
                 document.getElementById('expenseForm')?.reset();
                 refreshAllMetrics();
-            } catch (e) { showToast("Persistence failed", "danger"); }
+            } catch (e) { 
+                console.error("Critical Persistence Failure:", e);
+                showToast("Persistence failed. Check console.", "danger"); 
+            }
         };
     }
 
