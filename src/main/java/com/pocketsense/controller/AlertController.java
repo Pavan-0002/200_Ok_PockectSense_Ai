@@ -13,6 +13,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
+@CrossOrigin(origins = "*")
 public class AlertController {
 
     private static final Logger logger = LoggerFactory.getLogger(AlertController.class);
