@@ -7,7 +7,7 @@ AI-powered personal finance coach for students.
 
 ## 🌐 Live Demo
 
-👉 https://your-app.netlify.app
+👉 pocketsenseai.netlify.app
 
 ## 🎥 Demo Video
 
