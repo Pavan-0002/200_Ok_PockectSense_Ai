@@ -3,7 +3,7 @@ const BASE_URL = 'https://200okkrishjaiswar-production.up.railway.app';
 const API_BASE_URL = `${BASE_URL}/api`;
 let supabaseClient = null;
 
-const MOCK_USER_ID = '1';
+const MOCK_USER_ID = '123e4567-e89b-12d3-a456-426614174000';
 
 /**
  * 🚀 APPLICATION LIFECYCLE
@@ -69,9 +69,9 @@ async function getAuthenticatedUser() {
 async function getUserId() {
     const user = await getAuthenticatedUser();
     console.log("User:", user);
-    if (!user) {
-        return MOCK_USER_ID;
-    }
+    async function getUserId() {
+    return "123e4567-e89b-12d3-a456-426614174000";
+}
     return user.id;
 }
 
