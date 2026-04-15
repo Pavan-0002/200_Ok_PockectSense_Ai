@@ -90,13 +90,15 @@ async function apiFetch(endpoint, options = {}) {
             throw new Error(errorMsg || `API Error: ${response.status}`);
         }
 
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-            const data = await response.json();
+        const text = await response.text();
+        if (!text) return {};
+        try {
+            const data = JSON.parse(text);
             console.log(`Response from ${endpoint}:`, data);
             return data;
+        } catch(e) {
+            return {};
         }
-        return null;
     } catch (error) {
         console.error(`Fetch Failure at ${endpoint}:`, error);
         throw error;
@@ -159,7 +161,7 @@ async function setupDashboard() {
         const [bData, hData, gData, aData, pData, rData] = await Promise.all([
             apiFetch(`/budget/${userId}`),
             apiFetch(`/health/${userId}`),
-            apiFetch(`/goals/${userId}`),
+            apiFetch(`/goal/${userId}`),
             apiFetch(`/analytics/${userId}`),
             apiFetch(`/prediction/${userId}`),
             apiFetch(`/regret/${userId}`)
@@ -190,8 +192,12 @@ async function setupDashboard() {
         }
 
         const expenses = await apiFetch(`/expenses/${userId}`);
-        renderExpenses(expenses);
-    } catch (e) { console.error("Dashboard engine failure"); }
+        renderExpenses(expenses || []);
+    } catch (e) { 
+        console.error("Dashboard engine failure:", e);
+        setText('dashHealthStatus', 'Offline');
+        setText('dashHealthMessage', 'Could not load data.');
+    }
 }
 
 /**
@@ -212,7 +218,7 @@ async function setupInsights() {
         const ctx = document.getElementById('spendChart')?.getContext('2d');
         if (ctx) {
             const expenses = await apiFetch(`/expenses/${userId}`);
-            const groups = expenses.reduce((acc, obj) => {
+            const groups = (expenses || []).reduce((acc, obj) => {
                 const cat = (obj.category || "Other").charAt(0).toUpperCase() + (obj.category || "Other").slice(1).toLowerCase();
                 acc[cat] = (acc[cat] || 0) + obj.amount;
                 return acc;
@@ -231,7 +237,11 @@ async function setupInsights() {
                 options: { plugins: { legend: { display: false } }, cutout: '70%', responsive: true }
             });
         }
-    } catch (e) { console.error("Insights load failure"); }
+    } catch (e) { 
+        console.error("Insights load failure:", e);
+        setText('insightPrimaryTitle', 'Unavailable');
+        setText('insightPrimaryDesc', 'Failed to generate insights. Ensure backend is running.');
+    }
 }
 
 /**
@@ -244,7 +254,7 @@ async function setupSavings() {
 
     const fetchSavingsData = async () => {
         try {
-            const data = await apiFetch(`/goals/${userId}`);
+            const data = await apiFetch(`/goal/${userId}`);
             const progress = data.progress || 0;
             const bar = document.getElementById('savingsProgressBarFilled');
             if (bar) {
@@ -269,7 +279,10 @@ async function setupSavings() {
             // Also fetch savings list
             const savings = await apiFetch(`/savings/${userId}`);
             renderSavingsList(savings);
-        } catch (e) { console.error("Savings fetch failure"); }
+        } catch (e) { 
+            console.error("Savings fetch failure:", e);
+            setText('goalPercentageNode', 'Error');
+        }
     };
 
     if (addSavingForm) {

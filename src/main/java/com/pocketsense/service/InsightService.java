@@ -26,7 +26,7 @@ public class InsightService {
         List<Expense> expenses = expenseRepository.findByUserId(userId);
 
         if (expenses.isEmpty()) {
-            return new InsightResponse("New Spender", "None", "Stable", "Start logging expenses to generate AI insights.", new ArrayList<>());
+            return new InsightResponse("New Spender", "None", "Stable", "Start logging expenses to generate AI insights.", new ArrayList<>(), 0.0, 0.0, 100);
         }
 
         System.out.println("Processing Insights for user: " + userId + " | Total Expenses: " + expenses.size());
@@ -77,7 +77,7 @@ public class InsightService {
         if (expenses.size() > 10) badges.add("Consistent Tracker");
         if (personality.contains("Foodie")) badges.add("Culinary Enthusiast");
 
-        return new InsightResponse(personality, topCategory, trend, message, badges);
+        return new InsightResponse(personality, topCategory, trend, message, badges, 0.0, 0.0, 100);
     }
 
     public List<AlertResponse> getAlerts(UUID userId) {

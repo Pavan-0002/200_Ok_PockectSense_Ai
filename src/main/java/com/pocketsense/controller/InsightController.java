@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/api/insights")
+@RequestMapping("/api")
 public class InsightController {
 
     private static final Logger logger = LoggerFactory.getLogger(InsightController.class);
@@ -23,7 +23,7 @@ public class InsightController {
     @Autowired
     private com.pocketsense.service.ExpenseService expenseService;
 
-    @GetMapping("/{userId}")
+    @GetMapping("/insights/{userId}")
     public ResponseEntity<?> getInsights(@PathVariable UUID userId) {
         try {
             if (userId == null) return ResponseEntity.badRequest().body("User ID is required");
@@ -55,36 +55,5 @@ public class InsightController {
         }
     }
 
-    @GetMapping("/health/{userId}")
-    public ResponseEntity<?> getHealthScore(@PathVariable UUID userId) {
-        try {
-            if (userId == null) return ResponseEntity.badRequest().body("User ID is required");
-            return ResponseEntity.ok(insightService.getHealthScore(userId));
-        } catch (Exception e) {
-            logger.error("Error fetching health score for user {}: ", userId, e);
-            return ResponseEntity.internalServerError().body("Error processing health score");
-        }
-    }
 
-    @GetMapping("/prediction/{userId}")
-    public ResponseEntity<?> getPrediction(@PathVariable UUID userId) {
-        try {
-            if (userId == null) return ResponseEntity.badRequest().body("User ID is required");
-            return ResponseEntity.ok(insightService.getPrediction(userId));
-        } catch (Exception e) {
-            logger.error("Error fetching prediction for user {}: ", userId, e);
-            return ResponseEntity.internalServerError().body("Error processing prediction");
-        }
-    }
-
-    @GetMapping("/regret/{userId}")
-    public ResponseEntity<?> getRegret(@PathVariable UUID userId) {
-        try {
-            if (userId == null) return ResponseEntity.badRequest().body("User ID is required");
-            return ResponseEntity.ok(insightService.getRegret(userId));
-        } catch (Exception e) {
-            logger.error("Error fetching regret data for user {}: ", userId, e);
-            return ResponseEntity.internalServerError().body("Error processing regret metrics");
-        }
-    }
 }

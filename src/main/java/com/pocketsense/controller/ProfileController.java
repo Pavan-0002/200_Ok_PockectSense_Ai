@@ -1,7 +1,5 @@
 package com.pocketsense.controller;
 
-import com.pocketsense.dto.AnalyticsResponse;
-import com.pocketsense.dto.BudgetResponse;
 import com.pocketsense.dto.ProfileRequest;
 import com.pocketsense.model.Expense;
 import com.pocketsense.model.Profile;
@@ -66,53 +64,5 @@ public class ProfileController {
         }
     }
 
-    @GetMapping("/budget/{userId}")
-    public ResponseEntity<?> getBudget(@PathVariable UUID userId) {
-        try {
-            if (userId == null) return ResponseEntity.badRequest().body("User ID is required");
-            Profile profile = profileService.getProfileByUserId(userId);
-            double monthlyBudget = (profile != null && profile.getMonthlyBudget() != null) ? profile.getMonthlyBudget() : 5000.0;
-            
-            List<Expense> expenses = expenseRepository.findByUserId(userId);
-            double spent = expenses.stream().mapToDouble(Expense::getAmount).sum();
-            double remaining = monthlyBudget - spent;
-            
-            String status = "safe";
-            if (spent > monthlyBudget) {
-                status = "danger";
-            } else if (spent > (monthlyBudget * 0.8)) {
-                status = "warning";
-            }
 
-            return ResponseEntity.ok(new BudgetResponse(monthlyBudget, spent, remaining, status));
-        } catch (Exception e) {
-            logger.error("Error fetching budget for user {}: ", userId, e);
-            return ResponseEntity.internalServerError().body("Error calculating budget metrics");
-        }
-    }
-
-    @GetMapping("/analytics/{userId}")
-    public ResponseEntity<?> getAnalytics(@PathVariable UUID userId) {
-        try {
-            if (userId == null) return ResponseEntity.badRequest().body("User ID is required");
-            List<Expense> expenses = expenseRepository.findByUserId(userId);
-            double totalSpending = expenses.stream().mapToDouble(Expense::getAmount).sum();
-            
-            String topCategory = "None";
-            if (!expenses.isEmpty()) {
-                topCategory = expenses.stream()
-                    .collect(Collectors.groupingBy(e -> e.getCategory() != null ? e.getCategory() : "Other", Collectors.summingDouble(Expense::getAmount)))
-                    .entrySet().stream()
-                    .max(Map.Entry.comparingByValue())
-                    .map(Map.Entry::getKey)
-                    .orElse("None");
-            }
-            
-            double avgDaily = expenses.isEmpty() ? 0.0 : totalSpending / Math.max(1, expenses.size());
-            return ResponseEntity.ok(new AnalyticsResponse(totalSpending, topCategory, avgDaily));
-        } catch (Exception e) {
-            logger.error("Error fetching analytics for user {}: ", userId, e);
-            return ResponseEntity.internalServerError().body("Error generating spending analytics");
-        }
-    }
 }
