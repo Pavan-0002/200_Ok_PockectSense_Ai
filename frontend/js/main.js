@@ -13,18 +13,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupGlobalNavigation();
         
         const path = window.location.pathname;
-        if (path.includes('dashboard.html')) {
+        if (path.includes('dashboard')) {
             await refreshAllMetrics(); 
             setupBillScan();
-        } else if (path.includes('savings.html')) {
+        } else if (path.includes('savings')) {
             setupSavings();
-        } else if (path.includes('insights.html')) {
+        } else if (path.includes('insights')) {
             setupInsights();
-        } else if (path.includes('profile.html')) {
+        } else if (path.includes('profile')) {
             setupProfile();
-        } else if (path.includes('login.html')) {
+        } else if (path.includes('login') || path === '/' || path === '') {
             setupLogin();
-        } else if (path.includes('signup.html')) {
+        } else if (path.includes('signup')) {
             setupSignup();
         }
     } catch (error) {
@@ -113,8 +113,8 @@ async function refreshAllMetrics() {
         await Promise.allSettled([
             setupDashboard(),
             triggerAlertToasts(),
-            window.location.pathname.includes('insights.html') ? setupInsights() : Promise.resolve(),
-            window.location.pathname.includes('profile.html') ? setupProfile() : Promise.resolve()
+            window.location.pathname.includes('insights') ? setupInsights() : Promise.resolve(),
+            window.location.pathname.includes('profile') ? setupProfile() : Promise.resolve()
         ]);
     } catch (e) {
         console.error("Metric refresh failed:", e);
